@@ -1,9 +1,8 @@
 import { verifyRefreshToken, signRefreshToken, signAccessToken } from '../type/jwt';
 import { Request, Response } from "express";
-import { User } from "../user";
+import { User } from "../models/user";
 import { hashPassword, comparePassword } from "../utils/password";
-import { AuthRequest    } from "../middleware/auth";
-
+import { AuthRequest } from "../middleware/auth";
 
 // POST /register
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -117,10 +116,11 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
     const decoded = verifyRefreshToken(refreshToken);
     const user = await User.findById(decoded.userId);
 
-    if (user) {
-      user.refreshTokens = user.refreshTokens.filter((t) => t !== refreshToken);
-      await user.save();
-    }
+  // Inside logout function:
+if (user) {
+  user.refreshTokens = user.refreshTokens.filter((t: string) => t !== refreshToken);
+  await user.save();
+}
 
     res.status(200).json({ message: "Logged out" });
   } catch (err) {
@@ -141,5 +141,56 @@ export const me = async (req: AuthRequest, res: Response): Promise<void> => {
     res.status(200).json({ user });
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch user" });
+  }
+};
+
+// PUT /me (Update Profile & Vendor Info)
+export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401).json({ message: "Unauthorized" });
+      return;
+    }
+
+    const {
+      name,
+      phoneNumber,
+      profileImage,
+      dateOfBirth,
+      gender,
+      address,
+      businessName,
+      logo,
+      description,
+      subscription,
+    } = req.body;
+
+    const updateData: Record<string, any> = {};
+    if (name !== undefined) updateData.name = name;
+    if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+    if (profileImage !== undefined) updateData.profileImage = profileImage;
+    if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth;
+    if (gender !== undefined) updateData.gender = gender;
+    if (address !== undefined) updateData.address = address;
+    if (businessName !== undefined) updateData.businessName = businessName;
+    if (logo !== undefined) updateData.logo = logo;
+    if (description !== undefined) updateData.description = description;
+    if (subscription !== undefined) updateData.subscription = subscription;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).select("-passwordHash -refreshTokens");
+
+    if (!updatedUser) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    res.status(200).json({ user: updatedUser });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update profile", error: (err as Error).message });
   }
 };
