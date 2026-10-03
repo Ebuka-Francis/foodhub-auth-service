@@ -194,3 +194,30 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     res.status(500).json({ message: "Failed to update profile", error: (err as Error).message });
   }
 };
+
+// PUT /role
+export const updateRole = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { role } = req.body;
+
+    if (!["customer", "cook"].includes(role)) {
+      res.status(400).json({ message: "Invalid role" });
+      return;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user?.userId,
+      { role },
+      { new: true }
+    ).select("-passwordHash -refreshTokens");
+
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    res.status(200).json({ user });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update role" });
+  }
+};
